@@ -29,6 +29,7 @@
 local MusicUtil = require "musicutil"
 local UI = require "ui"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
+local nest = include "lib/nest"
 
 engine.name = "MollyThePoly"
 
@@ -606,145 +607,150 @@ end
 
 -- Encoder input
 function enc(n, delta)
-  
-  -- Global
-  if n == 1 then
-    pages:set_index_delta(util.clamp(delta, -1, 1), false)
-    save_menu_list:set_index(1)
-  
+  if pages.index == 4 and n ~= 1 then
+    nest.enc(n, delta)
   else
+    -- Global
+    if n == 1 then
+      pages:set_index_delta(util.clamp(delta, -1, 1), false)
+      save_menu_list:set_index(1)
     
-    -- Time
-    if pages.index == 1 then
+    else
       
-      if n == 2 then
-        params:delta("clock_tempo", delta)
+      -- Time
+      if pages.index == 1 then
         
-      elseif n == 3 then
-        if delta > 0 then
-          add_random()
-        else
-          remove_last()
-        end
-        
-      end
-      
-    -- Pitch
-    elseif pages.index == 2 then
-      
-      if custom_scale then
         if n == 2 then
-          scale_edit_id = util.clamp(scale_edit_id + util.clamp(delta, -1, 1), 1, grid_w)
+          params:delta("clock_tempo", delta)
           
         elseif n == 3 then
-          scale_notes[scale_edit_id] = util.clamp(scale_notes[scale_edit_id] + delta, 0, 127)
-          scale_note_names = MusicUtil.note_nums_to_names(scale_notes, true)
-        end
-        
-      else
-        if n == 2 then
-          root_note = util.clamp(root_note + util.clamp(delta, -1, 1), 0, 127)
-          init_scale()
-          
-        elseif n == 3 then
-          scale_type = util.clamp(scale_type + util.clamp(delta, -1, 1), 1, SCALES_LEN)
-          init_scale()
-        end
-      end
-      
-    -- Load/Save
-    elseif pages.index == 3 then
-      
-      if n == 2 then
-        save_slot_list:set_index_delta(util.clamp(delta, -1, 1))
-        
-      elseif n == 3 then
-        save_menu_list:set_index_delta(util.clamp(delta, -1, 1))
-        
-      end
-      
-    end
-  end
-  
-  screen_dirty = true
-  
-end
-
--- Key input
-function key(n, z)
-  
-  if z == 1 then
-    
-    -- Key 2
-    if n == 2 then
-      
-      if confirm_message then
-        confirm_message = nil
-        confirm_function = nil
-      
-      else
-        if clock_running then
-          clock.cancel(clock_id)
-          clock_running = false
-        else
-          clock_id = clock.run(advance_step)
-          clock_running = true
-        end
-        
-      end
-    
-    -- Key 3
-    elseif n == 3 then
-      
-      if confirm_message then
-        confirm_function()
-        confirm_message = nil
-        confirm_function = nil
-        
-      else
-      
-        -- Time
-        if pages.index == 1 then
-          MollyThePoly.randomize_params("lead")
-        
-        -- Pitch
-        elseif pages.index == 2 then
-          custom_scale = not custom_scale
-          if not custom_scale then
-            init_scale()
+          if delta > 0 then
+            add_random()
           else
-            scale_edit_id = 1
+            remove_last()
           end
+          
+        end
         
-        -- Load/Save
-        elseif pages.index == 3 then
-          
-          -- Load
-          if save_menu_list.index == 1 then
-            load_pattern(save_slot_list.index)
-          
-          -- Save
-          elseif save_menu_list.index == 2 then
-            if save_slot_list.index < #save_slot_list.entries then
-              confirm_message = UI.Message.new({"Replace saved pattern?"})
-              confirm_function = function() save_pattern(save_slot_list.index) end
-            else
-              save_pattern(save_slot_list.index)
-            end
+      -- Pitch
+      elseif pages.index == 2 then
+        
+        if custom_scale then
+          if n == 2 then
+            scale_edit_id = util.clamp(scale_edit_id + util.clamp(delta, -1, 1), 1, grid_w)
             
-          -- Delete
-          elseif save_menu_list.index == 3 then
-            if save_slot_list.index < #save_slot_list.entries then
-              confirm_message = UI.Message.new({"Delete saved pattern?"})
-              confirm_function = function() delete_pattern(save_slot_list.index) end
-            end
+          elseif n == 3 then
+            scale_notes[scale_edit_id] = util.clamp(scale_notes[scale_edit_id] + delta, 0, 127)
+            scale_note_names = MusicUtil.note_nums_to_names(scale_notes, true)
+          end
+          
+        else
+          if n == 2 then
+            root_note = util.clamp(root_note + util.clamp(delta, -1, 1), 0, 127)
+            init_scale()
             
+          elseif n == 3 then
+            scale_type = util.clamp(scale_type + util.clamp(delta, -1, 1), 1, SCALES_LEN)
+            init_scale()
           end
         end
+        
+      -- Load/Save
+      elseif pages.index == 3 then
+        
+        if n == 2 then
+          save_slot_list:set_index_delta(util.clamp(delta, -1, 1))
+          
+        elseif n == 3 then
+          save_menu_list:set_index_delta(util.clamp(delta, -1, 1))
+          
+        end
+        
       end
     end
     
     screen_dirty = true
+  end
+end
+
+-- Key input
+function key(n, z)
+  if pages.index == 4 then
+    nest.key(n, z)
+  else
+    if z == 1 then
+      
+      -- Key 2
+      if n == 2 then
+        
+        if confirm_message then
+          confirm_message = nil
+          confirm_function = nil
+        
+        else
+          if clock_running then
+            clock.cancel(clock_id)
+            clock_running = false
+          else
+            clock_id = clock.run(advance_step)
+            clock_running = true
+          end
+          
+        end
+      
+      -- Key 3
+      elseif n == 3 then
+        
+        if confirm_message then
+          confirm_function()
+          confirm_message = nil
+          confirm_function = nil
+          
+        else
+        
+          -- Time
+          if pages.index == 1 then
+            MollyThePoly.randomize_params("lead")
+          
+          -- Pitch
+          elseif pages.index == 2 then
+            custom_scale = not custom_scale
+            if not custom_scale then
+              init_scale()
+            else
+              scale_edit_id = 1
+            end
+          
+          -- Load/Save
+          elseif pages.index == 3 then
+            
+            -- Load
+            if save_menu_list.index == 1 then
+              load_pattern(save_slot_list.index)
+            
+            -- Save
+            elseif save_menu_list.index == 2 then
+              if save_slot_list.index < #save_slot_list.entries then
+                confirm_message = UI.Message.new({"Replace saved pattern?"})
+                confirm_function = function() save_pattern(save_slot_list.index) end
+              else
+                save_pattern(save_slot_list.index)
+              end
+              
+            -- Delete
+            elseif save_menu_list.index == 3 then
+              if save_slot_list.index < #save_slot_list.entries then
+                confirm_message = UI.Message.new({"Delete saved pattern?"})
+                confirm_function = function() delete_pattern(save_slot_list.index) end
+              end
+              
+            end
+          end
+        end
+      end
+      
+      screen_dirty = true
+    end
   end
 end
 
@@ -837,6 +843,8 @@ end
 
 
 function init()
+  
+  nest.init()
   
   for x = 1, 16 do
     grid_leds[x] = {}
@@ -948,7 +956,7 @@ function init()
   
   -- UI
   
-  pages = UI.Pages.new(1, 3)
+  pages = UI.Pages.new(1, 4)
   save_slot_list = UI.ScrollingList.new(5, 9, 1, {})
   save_menu_list = UI.List.new(92, 20, 1, save_menu_items)
   playback_icon = UI.PlaybackIcon.new(121, 1)
@@ -1172,6 +1180,8 @@ function redraw()
       save_slot_list:redraw()
       save_menu_list:redraw()
       
+    elseif pages.index == 4 then
+      nest.redraw()
     end
     
     -- Icons
