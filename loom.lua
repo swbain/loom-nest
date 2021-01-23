@@ -28,7 +28,6 @@
 
 local MusicUtil = require "musicutil"
 local UI = require "ui"
-local BeatClock = require "beatclock"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
 
 engine.name = "MollyThePoly"
@@ -47,10 +46,7 @@ local grid_dirty = true
 local grid_leds = {}
 local grid_w, grid_h = 16, 8
 
-local beat_clock
-
 local grid_device
-local midi_in_device
 local midi_out_device
 local midi_out_channel
 
@@ -418,6 +414,9 @@ local function remove_last()
 end
 
 local function advance_step()
+  print(step_div)
+  while true do
+    clock.sync(step_div)
   
   if grid_device then
     grid_w = grid_device.cols
@@ -536,16 +535,12 @@ local function advance_step()
   end
   
   screen_dirty = true
+  end
 end
 
 local function stop()
   all_notes_kill()
 end
-
-local function reset_step()
-  beat_clock:reset()
-end
-
 
 local function grid_update()
   
@@ -622,8 +617,8 @@ function enc(n, delta)
     -- Time
     if pages.index == 1 then
       
-      if n == 2 and beat_clock.external == false then
-        params:delta("bpm", delta)
+      if n == 2 then
+        params:delta("clock_tempo", delta)
         
       elseif n == 3 then
         if delta > 0 then
@@ -688,12 +683,12 @@ function key(n, z)
         confirm_function = nil
       
       else
-        if not beat_clock.external then
-          if beat_clock.playing then
-            beat_clock:stop()
-          else
-            beat_clock:start()
-          end
+        if clock_running then
+          clock.cancel(clock_id)
+          clock_running = false
+        else
+          clock_id = clock.run(advance_step)
+          clock_running = true
         end
         
       end
@@ -840,14 +835,6 @@ local function grid_key(x, y, z)
   grid_dirty = true
 end
 
--- MIDI event
-local function midi_clock_event(data)
-  beat_clock:process_midi(data)
-  if not beat_clock.playing and playback_icon.status == 1 then
-    screen_dirty = true
-  end
-end
-
 
 function init()
   
@@ -870,22 +857,6 @@ function init()
   
   grid_device = grid.connect(1)
   grid_device.key = grid_key
-  
-  beat_clock = BeatClock.new()
-  
-  beat_clock.on_step = advance_step
-  beat_clock.on_stop = stop
-  beat_clock.on_select_internal = function()
-    beat_clock:start()
-    screen_dirty = true
-  end
-  beat_clock.on_select_external = function()
-    reset_step()
-    screen_dirty = true
-  end
-  
-  midi_in_device = midi.connect(1)
-  midi_in_device.event = midi_clock_event
   
   midi_out_device = midi.connect(1)
   
@@ -948,37 +919,11 @@ function init()
       midi_out_channel = value
     end}
   
-  params:add{type = "option", id = "clock", name = "Clock", options = {"Internal", "External"}, default = beat_clock.external or 2 and 1,
-    action = function(value)
-      beat_clock:clock_source_change(value)
-    end}
-  
-  params:add{type = "number", id = "midi_clock_in_device", name = "Clock MIDI In Device", min = 1, max = 4, default = 1,
-    action = function(value)
-      midi_in_device.event = nil
-      midi_in_device = midi.connect(value)
-      midi_in_device.event = midi_clock_event
-    end}
-  
-  params:add{type = "option", id = "clock_out", name = "Clock Out", options = {"Off", "On"}, default = beat_clock.send or 2 and 1,
-    action = function(value)
-      if value == 1 then beat_clock.send = false
-      else beat_clock.send = true end
-    end}
-  
   params:add_separator("Fabric")
-  
-  params:add{type = "number", id = "bpm", name = "BPM", min = 1, max = 240, default = beat_clock.bpm,
-    action = function(value)
-      beat_clock:bpm_change(value)
-      screen_dirty = true
-    end}
   
   params:add{type = "option", id = "step_length", name = "Step Length", options = options.STEP_LENGTH_NAMES, default = 10,
     action = function(value)
-      beat_clock.ticks_per_step = 96 / options.STEP_LENGTH_DIVIDERS[value]
-      beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
-      beat_clock:bpm_change(beat_clock.bpm)
+      step_div = 1 / (options.STEP_LENGTH_DIVIDERS[value] / 4)
     end}
   
   params:add{type = "number", id = "pattern_width", name = "Pattern Width", min = 4, max = 64, default = 16,
@@ -1011,7 +956,8 @@ function init()
   screen.aa(1)
   screen_refresh_metro:start(1 / SCREEN_FRAMERATE)
   grid_redraw_metro:start(1 / GRID_FRAMERATE)
-  beat_clock:start()
+  clock_id = clock.run(advance_step)
+  clock_running = true
   
   -- Data
   read_data()
@@ -1149,7 +1095,9 @@ function redraw()
   
     pages:redraw()
     
-    if beat_clock.playing then
+    -- TODO: replace with script local boolean for playback status
+    
+    if clock_running then
       playback_icon.status = 1
     else
       playback_icon.status = 3
@@ -1161,13 +1109,8 @@ function redraw()
       
       -- BPM
       screen.move(5, 29)
-      if beat_clock.external then
-        screen.level(3)
-        screen.text("External")
-      else
-        screen.level(15)
-        screen.text(params:get("bpm") .. " BPM")
-      end
+      screen.level(15)
+      screen.text(params:get("clock_tempo") .. " BPM")
       
       -- Status
       if notes_changed_timeout > 0 then screen.level(15)
