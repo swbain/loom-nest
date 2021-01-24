@@ -1,0 +1,3 @@
+[submodule "lib/nest"]
+	path = lib/nest
+	url = git@github.com:swbain/nest.git

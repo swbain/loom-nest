@@ -29,7 +29,7 @@
 local MusicUtil = require "musicutil"
 local UI = require "ui"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
-local nest = include "lib/nest"
+local nest = include "lib/nest/nest"
 
 engine.name = "MollyThePoly"
 
